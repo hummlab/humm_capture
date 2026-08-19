@@ -1,0 +1,1 @@
+void openExternalUrl(Uri uri) {}

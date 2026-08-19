@@ -1,16 +1,15 @@
 # Self-hosted Feedback Console
 
 This guide installs the complete feedback workflow in one Firebase-backed
-Flutter project. It is designed for a project such as GateFlow, SAO Sports or
-another internal application. It does not use Humm Hub.
+Flutter project. It is designed for any internal or customer-facing Flutter application.
 
 ## What is included
 
-The `humm_feedback` repository contains two separate deliverables:
+The `humm_capture` repository contains two deliverables:
 
 | Deliverable | Responsibility | Runs in |
 | --- | --- | --- |
-| `humm_feedback` | Capture the Flutter view, let a tester add markers and a message, then submit a portable report. | The host Flutter app. |
+| `humm_capture` | Capture the Flutter view, let a tester add markers and a message, then submit a portable report. | The host Flutter app. |
 | `feedback_console` | Authenticate reviewers, display reports and screenshots, change status, show status history, and let administrators delete a report with its screenshot. | A separate Flutter Web deployment. |
 
 The SDK is backend-neutral. The current `feedback_console` is intentionally
@@ -21,7 +20,7 @@ accepted reports into this Firebase contract.
 
 ```mermaid
 flowchart LR
-  A["Host Flutter app\n+humm_feedback"] -->|"HTTPS + user token"| B["Project intake endpoint\n+Cloud Function, Cloud Run, or own backend"]
+  A["Host Flutter app\n+humm_capture"] -->|"HTTPS + user token"| B["Project intake endpoint\n+Cloud Function, Cloud Run, or own backend"]
   B --> C["Project Firebase\n+Firestore + Storage"]
   D["feedback_console\n+Firebase Hosting"] -->|"Firebase Auth + rules"| C
 ```
@@ -35,16 +34,17 @@ Complete these steps in the Firebase project owned by the host application.
 2. Create a Firebase **Web app**. Its configuration is required by the panel,
    not by the SDK.
 3. Ensure Cloud Firestore and Cloud Storage are enabled.
-4. Add a server-side intake endpoint. It must authenticate the caller, validate
-   the report, write the screenshot and create the Firestore record. The SDK
-   must never have a Firebase Admin credential.
+4. Add a server-side intake endpoint (e.g. 2nd Gen Cloud Function or Cloud Run).
+   - Ensure the endpoint has the Cloud Run Invoker (`roles/run.invoker`) permission
+     granted to `allUsers` so that HTTPS requests can reach the function. Authentication
+     is verified in code via the Firebase ID token in the `Authorization: Bearer <token>` header.
+   - The endpoint authenticates the caller, validates the report payload, writes the screenshot
+     to Storage using the Firebase Admin SDK, and creates the Firestore document.
 5. Merge `feedback_console/firebase/firestore.rules` and
    `feedback_console/firebase/storage.rules` with the project's existing
    security rules. Do not overwrite unrelated application rules.
-6. Give the service account that runs the intake endpoint permission to create
-   objects in the project's Storage bucket. `roles/storage.objectCreator` is
-   the minimum role for screenshot creation. Use a broader role only when the
-   endpoint also genuinely needs it.
+6. Give the service account running the intake endpoint permission to create
+   objects in the project's Storage bucket (`roles/storage.objectCreator` minimum).
 
 Storage Rules do not grant permissions to the Firebase Admin SDK. The service
 account IAM permission in step 6 is therefore required even when the Storage
@@ -52,11 +52,11 @@ rules are correct.
 
 ## 1. Add the SDK to the Flutter app
 
-Add the published package to the application's `pubspec.yaml`:
+Add the package to the application's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  humm_feedback: ^1.0.0
+  humm_capture: ^1.0.0
 ```
 
 Create one controller at a stable application scope. Wrap the app content with
@@ -118,8 +118,8 @@ The panel currently expects this minimum document shape:
 
 ```json
 {
-  "applicationId": "gateflow.mobile",
-  "applicationName": "GateFlow",
+  "applicationId": "your_app.mobile",
+  "applicationName": "Your Application",
   "message": "The button overlaps the price on a small screen.",
   "annotationCount": 1,
   "context": {

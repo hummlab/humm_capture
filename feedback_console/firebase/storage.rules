@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Feedback images are created by the server-side intake. The console can
+    // only read them after the Firebase project grants it reviewer access.
+    match /feedback/{allPaths=**} {
+      allow read: if request.auth != null &&
+        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.feedbackRole in ['reviewer', 'admin'] ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow delete: if request.auth != null &&
+        (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.feedbackRole == 'admin' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create, update: if false;
+    }
+  }
+}
