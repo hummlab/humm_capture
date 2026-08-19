@@ -1,3 +1,9 @@
+# 1.0.1
+
+- Refactor feedback composer into modular components under strict file size guidelines.
+- Remove internal debug logging from SDK.
+- Update feedback console configuration to support dynamic and self-hosted environments.
+
 # 1.0.0
 
 First stable release of the backend-neutral Flutter feedback SDK under the
