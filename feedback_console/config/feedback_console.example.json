@@ -1,0 +1,10 @@
+{
+  "FEEDBACK_FIREBASE_API_KEY": "replace-with-your-web-api-key",
+  "FEEDBACK_FIREBASE_APP_ID": "replace-with-your-web-app-id",
+  "FEEDBACK_FIREBASE_MESSAGING_SENDER_ID": "replace-with-your-sender-id",
+  "FEEDBACK_FIREBASE_PROJECT_ID": "replace-with-your-project-id",
+  "FEEDBACK_FIREBASE_AUTH_DOMAIN": "replace-with-your-project-id.firebaseapp.com",
+  "FEEDBACK_FIREBASE_STORAGE_BUCKET": "replace-with-your-bucket",
+  "FEEDBACK_FIREBASE_MEASUREMENT_ID": "",
+  "FEEDBACK_FUNCTIONS_BASE_URL": "https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/api"
+}

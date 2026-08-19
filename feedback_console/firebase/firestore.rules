@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function member() {
+      return signedIn() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feedbackRole in ['reviewer', 'admin'] ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function admin() {
+      return signedIn() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.feedbackRole == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    match /feedbackReports/{reportId} {
+      allow read: if member();
+      allow update: if member() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow create: if false;
+      allow delete: if admin();
+
+      match /statusEvents/{eventId} {
+        allow read: if member();
+        allow create: if member() &&
+          request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['fromStatus', 'toStatus', 'actorUid', 'actorLabel', 'createdAt']);
+        allow update, delete: if false;
+      }
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (userId == request.auth.uid || admin());
+      allow list: if admin();
+      allow update: if admin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackRole']);
+      allow create, delete: if false;
+    }
+  }
+}

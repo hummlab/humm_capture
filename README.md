@@ -44,7 +44,7 @@ FeedbackCaptureBoundary(
     buildNumber: '42',
     platform: FeedbackPlatform.android,
     screenName: 'checkout.payment',
-    locale: 'pl-PL',
+    locale: 'en-US',
     metadata: const {'environment': 'staging'},
   ),
   attachmentPicker: (type) => switch (type) {
