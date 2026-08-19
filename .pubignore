@@ -1,0 +1,11 @@
+# The reusable SDK is published from this repository. The standalone console is
+# source for local Firebase deployments and must never be included in pub.dev.
+/feedback_console/
+
+# Local and generated artifacts must not inflate a release archive.
+/build/
+/coverage/
+/.dart_tool/
+/.idea/
+*.iml
+*.zip

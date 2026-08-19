@@ -1,0 +1,24 @@
+name: humm_capture
+description: Visual feedback, bug reporting, and annotated screenshot capture for Flutter applications.
+version: 1.0.0
+repository: https://github.com/hummlab/humm_capture
+issue_tracker: https://github.com/hummlab/humm_capture/issues
+topics:
+  - feedback
+  - screenshot
+  - quality-assurance
+  - flutter
+
+environment:
+  sdk: ^3.9.2
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
