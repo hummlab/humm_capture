@@ -1,6 +1,6 @@
 # Updating Humm Capture in a consuming application
 
-The SDK package is `humm_capture` (release candidate 2.0.0). The repository directory
+The SDK package is `humm_capture` (release candidate 2.1.0). The repository directory
 may still be named `humm_feedback`. SDK, standalone console and Firebase
 services are three independent deliverables; updating one does not deploy the others.
 

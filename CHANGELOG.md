@@ -1,3 +1,10 @@
+# 2.1.0
+
+- Default new composer reports to Bug; hosts can set `defaultKind` and testers can switch types.
+- Start the console inbox with New and In review, preserving an explicit All reports view.
+- Bound inbox width and show desktop screenshot hover previews outside report text.
+- Omit Application and Locale from Jira descriptions while retaining Environment and diagnostic context.
+
 # 2.0.0
 
 - Support synchronous and asynchronous diagnostic providers. **Migration:**

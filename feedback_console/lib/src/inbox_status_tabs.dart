@@ -3,23 +3,44 @@ import 'package:flutter/material.dart';
 import 'console_theme.dart';
 import 'feedback_report.dart';
 
+/// Views preserve the workflow status; Active groups unfinished reports.
+enum InboxFilter {
+  active('New + In review'),
+  all('All reports'),
+  newReport('New'),
+  inReview('In review'),
+  resolved('Resolved'),
+  rejected('Rejected');
+
+  const InboxFilter(this.label);
+  final String label;
+  bool matches(FeedbackStatus status) => switch (this) {
+    active => status == FeedbackStatus.newReport || status == FeedbackStatus.inReview,
+    all => true,
+    newReport => status == FeedbackStatus.newReport,
+    inReview => status == FeedbackStatus.inReview,
+    resolved => status == FeedbackStatus.resolved,
+    rejected => status == FeedbackStatus.rejected,
+  };
+}
+
 /// Status navigation uses one baseline rather than a group of floating chips.
 class InboxStatusTabs extends StatelessWidget {
   const InboxStatusTabs({required this.reports, required this.selected, required this.onSelected, super.key});
 
   final List<FeedbackReport> reports;
-  final FeedbackStatus? selected;
-  final ValueChanged<FeedbackStatus?> onSelected;
+  final InboxFilter selected;
+  final ValueChanged<InboxFilter> onSelected;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: Row(
       children: [
-        for (final status in [null, ...FeedbackStatus.values])
+        for (final status in InboxFilter.values)
           _StatusTab(
-            label: status?.label ?? 'All reports',
-            count: status == null ? reports.length : reports.where((report) => report.status == status).length,
+            label: status.label,
+            count: reports.where((report) => status.matches(report.status)).length,
             selected: selected == status,
             onPressed: () => onSelected(status),
           ),

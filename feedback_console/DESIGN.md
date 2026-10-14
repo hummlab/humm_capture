@@ -94,3 +94,12 @@ marketing technique. Grain, glass, parallax, stock imagery, animated typography,
 cookie banners and legal footers do not address this authenticated review tool.
 Applicable checks cover hierarchy, content width, states, targets, focus, mobile
 input text, real counts, virtualization and consistent surfaces.
+
+## Review workflow refinements
+
+New + In review is the initial inbox view and includes New and In review. All reports
+remains available alongside individual lifecycle statuses. Reset returns to New + In review.
+The content width is bounded to 800 logical pixels, with 48px desktop gutters. Hover previews appear only
+when there is enough left gutter space, and never overlap report descriptions.
+Phones use the existing gallery interaction. App and Locale are omitted only
+from Jira descriptions; the original diagnostic context is preserved.

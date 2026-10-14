@@ -26,7 +26,7 @@ beforeEach(() => {
   fixture.documents.clear(); fixture.creates = 0; fixture.uploadFails = false;
   vi.stubEnv("GCLOUD_PROJECT", "test-project");
   fixture.documents.set("feedbackIntegrations/jira", {...credentials, configured: true, issueTypeId: "10001"});
-  fixture.documents.set("feedbackReports/report1", {message: "Tester description", status: "new", screenshotPath: "feedback/report1/screenshot", logsPath: "feedback/report1/logs.txt", context: {environment: "stage", appVersion: "1.0.1"}});
+  fixture.documents.set("feedbackReports/report1", {message: "Tester description", applicationName: "Sun Omnichannel", status: "new", screenshotPath: "feedback/report1/screenshot", logsPath: "feedback/report1/logs.txt", context: {environment: "stage", locale: "en", appVersion: "1.0.1"}});
   vi.stubGlobal("fetch", vi.fn(async (url: string, options: RequestInit) => {
     if (url.endsWith("/issue") && options.method === "POST") { fixture.creates++; return Response.json({key: "GF-1"}); }
     if (url.endsWith("/attachments")) {
@@ -59,6 +59,9 @@ describe("standalone Jira export", () => {
   });
   it("preserves description and environment", () => {
     const description = JSON.stringify(jiraDescription(fixture.documents.get("feedbackReports/report1")!, "report1"));
+    expect(description).not.toContain('Application');
+    expect(description).not.toContain('Locale');
+    expect(description).not.toContain('Sun Omnichannel');
     expect(description).toContain("Tester description"); expect(description).toContain("stage");
     expect(description).not.toContain("Screenshot and selected media are attached");
   });
@@ -79,6 +82,10 @@ describe("standalone Jira export", () => {
     const repeated = await createJiraIssue("report1", {summary: "Feedback 1", includeAttachments: false}, "admin");
     expect(repeated).toEqual({key: "GF-1", url: "https://test.atlassian.net/browse/GF-1"});
     expect(fixture.creates).toBe(1);
+    const uploadedNames = vi.mocked(fetch).mock.calls
+      .filter(([url]) => String(url).endsWith("/attachments"))
+      .map(([, options]) => ((options?.body as FormData).get("file") as File).name);
+    expect(uploadedNames).toContain("logs.txt");
     expect(fixture.documents.get("feedbackReports/report1")).toMatchObject({jiraExportState: "complete", status: "in_review"});
   });
   it("keeps the created key and warns when attachments fail", async () => {

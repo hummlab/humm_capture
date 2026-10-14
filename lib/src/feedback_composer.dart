@@ -21,6 +21,7 @@ class FeedbackComposer extends StatefulWidget {
     this.attachmentPicker,
     this.attachmentsProvider,
     this.logsProvider,
+    this.defaultKind = FeedbackReportKind.bug,
     @Deprecated('Jira task creation is handled from the Feedback Console.') this.taskCreationAvailabilityProvider,
     super.key,
   });
@@ -43,6 +44,9 @@ class FeedbackComposer extends StatefulWidget {
   /// Optional legacy host-owned image and video picker.
   @Deprecated('Use attachmentPicker to distinguish photos and video.')
   final FeedbackAttachmentsProvider? attachmentsProvider;
+
+  /// Initially selected report type, configurable by the host application.
+  final FeedbackReportKind defaultKind;
 
   /// Optional host-owned diagnostic log snapshot provider.
   final FeedbackLogsProvider? logsProvider;
@@ -74,12 +78,13 @@ class _FeedbackComposerState extends State<FeedbackComposer> {
   bool _isKeyboardDismissing = false;
   bool _isAttachmentMenuOpen = false;
   bool _isManagingAttachments = false;
-  FeedbackReportKind _selectedKind = FeedbackReportKind.feedback;
+  late FeedbackReportKind _selectedKind;
 
   @override
   void initState() {
     super.initState();
     _createdAt = DateTime.now();
+    _selectedKind = widget.defaultKind;
     _messageFocusNode.addListener(_onMessageFocusChanged);
     _loadImageSize();
   }

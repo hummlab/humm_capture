@@ -49,7 +49,7 @@ export function jiraDescription(report: Record<string, unknown>, reportId: strin
   const paragraph = (text: string) => ({type: "paragraph", content: text ? [{type: "text", text}] : []});
   const heading = (text: string) => ({type: "heading", attrs: {level: 2}, content: [{type: "text", text}]});
   const details = [
-    ["Application", report.applicationName], ["Report type", report.kind],
+    ["Report type", report.kind],
     ["Environment", context.environment], ["Platform", context.platform],
     ["Version", context.appVersion], ["Build", context.buildNumber],
     ["Device", context.deviceModel], ["OS version", context.osVersion],

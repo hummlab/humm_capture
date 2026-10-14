@@ -168,3 +168,9 @@ For an existing production application, follow
 [Diagnostic logs](doc/diagnostic-logs.md) describes persisted app events and
 opt-in Android current-process logcat collection; it does not promise phone-wide
 OS logs or automatic iOS native logging.
+
+## Initial report type
+
+The composer starts with Bug. Hosts can override it with
+`defaultKind: FeedbackReportKind.feedback` on `FeedbackCaptureBoundary`.
+Testers can still switch the report type before submission.

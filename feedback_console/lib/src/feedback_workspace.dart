@@ -8,6 +8,7 @@ import 'feedback_log_preview.dart';
 import 'console_section.dart';
 import 'console_theme.dart';
 import 'inbox_status_tabs.dart';
+import 'screenshot_hover_preview.dart';
 import 'workspace_navigation.dart';
 import 'feedback_image_gallery.dart';
 import 'feedback_repository.dart';
@@ -65,7 +66,7 @@ class FeedbackWorkspace extends StatefulWidget {
 class _FeedbackWorkspaceState extends State<FeedbackWorkspace> {
   final _repository = FeedbackRepository();
   _WorkspaceDestination _destination = _WorkspaceDestination.inbox;
-  FeedbackStatus? _status;
+  InboxFilter _status = InboxFilter.active;
   _FeedbackDateFilter? _dateFilter;
   String? _platform;
   String? _environment;
@@ -179,13 +180,13 @@ class _InboxWorkspace extends StatelessWidget {
   final bool canDelete;
   final bool canCreateJiraTasks;
   final String query;
-  final FeedbackStatus? status;
+  final InboxFilter status;
   final _FeedbackDateFilter? dateFilter;
   final String? platform;
   final String? environment;
   final String? version;
   final ValueChanged<String> onQueryChanged;
-  final ValueChanged<FeedbackStatus?> onStatusChanged;
+  final ValueChanged<InboxFilter> onStatusChanged;
   final ValueChanged<_FeedbackDateFilter?> onDateFilterChanged;
   final ValueChanged<String?> onPlatformChanged;
   final ValueChanged<String?> onEnvironmentChanged;
@@ -200,7 +201,7 @@ class _InboxWorkspace extends StatelessWidget {
       final reports = snapshot.data!;
       final visibleReports = reports
           .where((report) {
-            final matchesStatus = status == null || report.status == status;
+            final matchesStatus = status.matches(report.status);
             final matchesDate = _matchesDateFilter(report.capturedAt ?? report.createdAt, dateFilter);
             final matchesPlatform = platform == null || report.platform == platform;
             final matchesVersion = version == null || _versionFilterValue(report) == version;
@@ -239,14 +240,14 @@ class _InboxWorkspace extends StatelessWidget {
                     canCreateJiraTasks: canCreateJiraTasks,
                     hasFilter:
                         query.isNotEmpty ||
-                        status != null ||
+                        status != InboxFilter.active ||
                         dateFilter != null ||
                         platform != null ||
                         version != null ||
                         environment != null,
                     onClearFilters: () {
                       onQueryChanged('');
-                      onStatusChanged(null);
+                      onStatusChanged(InboxFilter.active);
                       onDateFilterChanged(null);
                       onPlatformChanged(null);
                       onEnvironmentChanged(null);
@@ -301,10 +302,10 @@ class _WorkspacePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1280),
+      constraints: const BoxConstraints(maxWidth: 800),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 32,
+          horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 48,
           vertical: MediaQuery.sizeOf(context).width < 700 ? 16 : 28,
         ),
         child: Column(
@@ -363,13 +364,13 @@ class _InboxFilterPanel extends StatefulWidget {
   final List<FeedbackReport> reports;
   final int resultCount;
   final String query;
-  final FeedbackStatus? status;
+  final InboxFilter status;
   final _FeedbackDateFilter? dateFilter;
   final String? platform;
   final String? environment;
   final String? version;
   final ValueChanged<String> onQueryChanged;
-  final ValueChanged<FeedbackStatus?> onStatusChanged;
+  final ValueChanged<InboxFilter> onStatusChanged;
   final ValueChanged<_FeedbackDateFilter?> onDateFilterChanged;
   final ValueChanged<String?> onPlatformChanged;
   final ValueChanged<String?> onEnvironmentChanged;
@@ -402,7 +403,7 @@ class _InboxFilterPanelState extends State<_InboxFilterPanel> {
     final activeCount = [dateFilter, platform, environment, version].where((v) => v != null).length;
     void clear() {
       onQueryChanged('');
-      onStatusChanged(null);
+      onStatusChanged(InboxFilter.active);
       onDateFilterChanged(null);
       onPlatformChanged(null);
       onEnvironmentChanged(null);
@@ -424,7 +425,7 @@ class _InboxFilterPanelState extends State<_InboxFilterPanel> {
                 icon: const Icon(Icons.tune_rounded, size: 18),
                 label: Text(activeCount == 0 ? 'Filters' : 'Filters · $activeCount'),
               ),
-              if (query.isNotEmpty || status != null || activeCount > 0)
+              if (query.isNotEmpty || status != InboxFilter.active || activeCount > 0)
                 IconButton(tooltip: 'Clear filters', onPressed: clear, icon: const Icon(Icons.filter_alt_off_outlined)),
             ],
           ),
@@ -617,81 +618,84 @@ class _FeedbackCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: 'Open feedback details',
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        hoverColor: ConsoleColors.wash,
-        focusColor: ConsoleColors.wash,
-        onTap: () => _openDetails(context),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 540;
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: compact ? 44 : 48,
-                    height: compact ? 68 : 72,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: _FeedbackScreenshotPreview(report: report, repository: repository),
+  Widget build(BuildContext context) => ScreenshotHoverPreview(
+    preview: _FeedbackScreenshotPreview(report: report, repository: repository),
+    child: Semantics(
+      button: true,
+      label: 'Open feedback details',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          hoverColor: ConsoleColors.wash,
+          focusColor: ConsoleColors.wash,
+          onTap: () => _openDetails(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 540;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: compact ? 44 : 48,
+                      height: compact ? 68 : 72,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: _FeedbackScreenshotPreview(report: report, repository: repository),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          report.message.isEmpty ? 'No description' : report.message,
-                          maxLines: compact ? 3 : 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500, height: 1.4),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          '${report.applicationName} · ${report.environment ?? 'Unspecified'} · ${report.platform}',
-                          style: const TextStyle(color: _muted, fontSize: 12),
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              _dateTimeLabel(context, report.capturedAt ?? report.createdAt),
-                              style: const TextStyle(color: _muted, fontSize: 12),
-                            ),
-                            if (compact) _FeedbackStatusMenu(report: report, repository: repository),
-                            if (report.attachments.isNotEmpty)
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            report.message.isEmpty ? 'No description' : report.message,
+                            maxLines: compact ? 3 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500, height: 1.4),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '${report.applicationName} · ${report.environment ?? 'Unspecified'} · ${report.platform}',
+                            style: const TextStyle(color: _muted, fontSize: 12),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
                               Text(
-                                '${report.attachments.length} attachments',
+                                _dateTimeLabel(context, report.capturedAt ?? report.createdAt),
                                 style: const TextStyle(color: _muted, fontSize: 12),
                               ),
-                            if (report.jiraIssueKey case final issueKey?)
-                              _JiraIssueLink(issueKey: issueKey, issueUrl: report.jiraIssueUrl),
-                          ],
-                        ),
-                      ],
+                              if (compact) _FeedbackStatusMenu(report: report, repository: repository),
+                              if (report.attachments.isNotEmpty)
+                                Text(
+                                  '${report.attachments.length} attachments',
+                                  style: const TextStyle(color: _muted, fontSize: 12),
+                                ),
+                              if (report.jiraIssueKey case final issueKey?)
+                                _JiraIssueLink(issueKey: issueKey, issueUrl: report.jiraIssueUrl),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (!compact) ...[
-                    const SizedBox(width: 24),
-                    _FeedbackStatusMenu(report: report, repository: repository),
-                    const SizedBox(width: 12),
-                    const Icon(Icons.chevron_right, size: 18, color: _muted),
+                    if (!compact) ...[
+                      const SizedBox(width: 24),
+                      _FeedbackStatusMenu(report: report, repository: repository),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.chevron_right, size: 18, color: _muted),
+                    ],
                   ],
-                ],
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
       ),
