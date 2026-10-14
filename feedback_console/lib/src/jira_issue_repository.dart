@@ -11,10 +11,11 @@ sealed class JiraIssueCreationResult {
 }
 
 final class JiraIssueCreationSuccess extends JiraIssueCreationResult {
-  const JiraIssueCreationSuccess({required this.key, required this.url});
+  const JiraIssueCreationSuccess({required this.key, required this.url, this.warning});
 
   final String key;
   final String url;
+  final String? warning;
 }
 
 final class JiraIssueCreationFailure extends JiraIssueCreationResult {
@@ -61,7 +62,7 @@ final class JiraIssueRepository {
       if (key == null || url == null) {
         return const JiraIssueCreationFailure('Jira did not return the created issue.');
       }
-      return JiraIssueCreationSuccess(key: key, url: url);
+      return JiraIssueCreationSuccess(key: key, url: url, warning: decoded['warning'] as String?);
     } on Exception {
       return const JiraIssueCreationFailure('Could not reach the feedback backend.');
     }

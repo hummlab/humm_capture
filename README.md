@@ -1,5 +1,10 @@
 # Humm Capture
 
+See [feedback configuration](doc/feedback-options.md) for optional media,
+dev/stage/prod labels, and backend-owned Slack notifications.
+See [release and update flow](doc/release-flow.md) for consumer updates and deployment.
+See [persistent and custom logs](doc/diagnostic-logs.md) for logger integration and privacy requirements.
+
 `humm_capture` captures visual feedback from Flutter applications without
 coupling the package to a particular backend.
 
@@ -156,3 +161,10 @@ fvm dart analyze lib test example/lib
 fvm flutter test
 fvm dart pub publish --dry-run
 ```
+
+
+For an existing production application, follow
+[production onboarding and verified scope](doc/production-onboarding.md).
+[Diagnostic logs](doc/diagnostic-logs.md) describes persisted app events and
+opt-in Android current-process logcat collection; it does not promise phone-wide
+OS logs or automatic iOS native logging.

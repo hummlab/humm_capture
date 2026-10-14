@@ -6,5 +6,6 @@
   "FEEDBACK_FIREBASE_AUTH_DOMAIN": "replace-with-your-project-id.firebaseapp.com",
   "FEEDBACK_FIREBASE_STORAGE_BUCKET": "replace-with-your-bucket",
   "FEEDBACK_FIREBASE_MEASUREMENT_ID": "",
-  "FEEDBACK_FUNCTIONS_BASE_URL": "https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/api"
+  "FEEDBACK_FUNCTIONS_BASE_URL": "https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/api",
+  "FEEDBACK_SLACK_FUNCTIONS_BASE_URL": "https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/feedbackSlackApi"
 }

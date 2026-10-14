@@ -1,0 +1,10 @@
+{
+  "name": "feedback-console-services",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {"node": "22"},
+  "scripts": {"build": "tsc", "test": "vitest run"},
+  "dependencies": {"firebase-admin": "^14.5.0", "firebase-functions": "^7.4.0"},
+  "devDependencies": {"@types/node": "^22.15.0", "typescript": "^5.9.3", "vitest": "^4.0.18"},
+  "overrides": {"gaxios": {"uuid": "^11.1.1"}}
+}

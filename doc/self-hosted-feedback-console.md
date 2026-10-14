@@ -18,6 +18,11 @@ Firebase Auth. A non-Firebase project can still use the SDK with its own HTTP
 endpoint, but needs its own panel adapter or a server process that copies the
 accepted reports into this Firebase contract.
 
+For optional media, environment labels, and standalone Slack notifications,
+see [feedback configuration](feedback-options.md) and
+[Slack services setup](../feedback_console/doc/slack-integration.md). These
+services use the adopting Firebase project; there is no Humm Hub dependency.
+
 ```mermaid
 flowchart LR
   A["Host Flutter app\n+humm_capture"] -->|"HTTPS + user token"| B["Project intake endpoint\n+Cloud Function, Cloud Run, or own backend"]

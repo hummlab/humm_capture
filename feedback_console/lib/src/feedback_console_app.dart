@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 
 import 'feedback_workspace.dart';
 import 'firebase_console_config.dart';
+import 'console_theme.dart';
 
-const _canvas = Color(0xFFF7F6FA);
-const _muted = Color(0xFF6E6878);
-const _outline = Color(0xFFE8E3F0);
-const _primary = Color(0xFF4D2FE8);
+const _muted = ConsoleColors.muted;
 
 class FeedbackConsoleApp extends StatelessWidget {
   const FeedbackConsoleApp({required this.config, super.key});
@@ -18,25 +16,8 @@ class FeedbackConsoleApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Feedback Console',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: _primary, brightness: Brightness.light),
-      scaffoldBackgroundColor: _canvas,
-      useMaterial3: true,
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _outline),
-        ),
-      ),
-    ),
-    home: config.isConfigured ? const _AuthenticationGate() : const _ConfigurationNeededPage(),
+    theme: consoleTheme(),
+    home: config.isConfigured ? _AuthenticationGate(config: config) : const _ConfigurationNeededPage(),
   );
 }
 
@@ -62,7 +43,8 @@ class _ConfigurationNeededPage extends StatelessWidget {
 }
 
 class _AuthenticationGate extends StatelessWidget {
-  const _AuthenticationGate();
+  const _AuthenticationGate({required this.config});
+  final FirebaseConsoleConfig config;
 
   @override
   Widget build(BuildContext context) => StreamBuilder<User?>(
@@ -71,7 +53,7 @@ class _AuthenticationGate extends StatelessWidget {
       if (snapshot.connectionState == ConnectionState.waiting) {
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
-      return snapshot.hasData ? const FeedbackWorkspace() : const _SignInPage();
+      return snapshot.hasData ? FeedbackWorkspace(config: config) : const _SignInPage();
     },
   );
 }

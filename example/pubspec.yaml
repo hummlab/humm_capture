@@ -32,6 +32,12 @@ dependencies:
     sdk: flutter
   humm_capture:
     path: ../
+  image_picker: ^1.2.3
+  path_provider: 2.1.5
+  firebase_core: 4.12.1
+  firebase_auth: 6.5.6
+  # Keep Pigeon options compatible with the native firebase_core 4.12.1 codec.
+  firebase_core_platform_interface: 8.0.0
 
 dev_dependencies:
   flutter_test:

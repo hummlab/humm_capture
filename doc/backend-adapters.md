@@ -15,6 +15,21 @@ Cloud Run endpoint. The endpoint should:
    lifecycle status;
 5. return only a report reference to the SDK.
 
+Preserve `context.environment` when provided. Accept only `dev`, `stage`, or
+`prod`; omit it for old clients rather than guessing. If your intake has a
+context allowlist, add this field explicitly. Store additional media under
+`feedback/{reportId}/...` with `path`, `fileName`, `mimeType`, and `sizeBytes`
+metadata so the bundled console and Storage rules can read it.
+
+For diagnostics, store the full formatted file at `logsPath`, the total count
+at `logCount`, and a bounded preview (last 20 entries) at `logs`. Preserve each
+entry's timestamp, level, category and message. Older records containing only
+`logsPath` still expose their downloadable file in the console.
+
+The optional [Slack services](../feedback_console/doc/slack-integration.md)
+run after a standalone `feedbackReports` document is created. They do not
+replace the authenticated intake and are never called by the mobile SDK.
+
 The web console reads this record through its own Firebase-authenticated
 administrator session. It must not share a Console credential, Firestore write
 permission or a Firebase Admin credential with the mobile SDK.

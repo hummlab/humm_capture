@@ -8,6 +8,7 @@ import 'feedback_composer_attachments.dart';
 import 'feedback_composer_chrome.dart';
 import 'feedback_message_field.dart';
 import 'feedback_models.dart';
+import 'feedback_log_buffer.dart';
 
 /// The default feedback editor displayed over a captured image.
 class FeedbackComposer extends StatefulWidget {
@@ -207,6 +208,7 @@ class _FeedbackComposerState extends State<FeedbackComposer> {
     setState(() => _isSubmitting = true);
     try {
       final annotatedImage = await renderAnnotatedImage(image: widget.image, strokes: _strokes);
+      final logs = await widget.logsProvider?.call() ?? const <FeedbackLogEntry>[];
       if (!mounted) return;
       final message = _messageController.text.trim();
       widget.onSubmit(
@@ -218,7 +220,7 @@ class _FeedbackComposerState extends State<FeedbackComposer> {
           context: widget.context,
           kind: _selectedKind,
           attachments: _attachments,
-          logs: widget.logsProvider?.call() ?? const <FeedbackLogEntry>[],
+          logs: recentFeedbackLogs(logs, now: DateTime.now()),
         ),
       );
     } on Object {
@@ -334,7 +336,7 @@ class _FeedbackComposerState extends State<FeedbackComposer> {
                                                 : () => setState(() => _isAttachmentMenuOpen = !_isAttachmentMenuOpen),
                                             icon: Badge(
                                               isLabelVisible: _attachments.isNotEmpty,
-                                              label: Text('${_attachments.length}'),
+                                              label: ExcludeSemantics(child: Text('${_attachments.length}')),
                                               child: const Icon(Icons.attach_file_rounded),
                                             ),
                                           ),

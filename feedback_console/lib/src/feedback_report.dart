@@ -68,6 +68,7 @@ final class FeedbackReport {
     required this.platform,
     required this.appVersion,
     this.buildNumber,
+    this.environment,
     this.screenName,
     this.osVersion,
     this.deviceModel,
@@ -75,11 +76,13 @@ final class FeedbackReport {
     this.capturedAt,
     this.screenshotPath,
     this.logsPath,
+    this.logCount,
     this.annotationCount = 0,
     this.attachments = const <FeedbackReportAttachment>[],
     this.logs = const <FeedbackReportLogEntry>[],
     this.jiraIssueKey,
     this.jiraIssueUrl,
+    this.jiraExportState,
   });
 
   final String id;
@@ -93,6 +96,7 @@ final class FeedbackReport {
   final String platform;
   final String appVersion;
   final String? buildNumber;
+  final String? environment;
   final String? screenName;
   final String? osVersion;
   final String? deviceModel;
@@ -100,11 +104,13 @@ final class FeedbackReport {
   final DateTime? capturedAt;
   final String? screenshotPath;
   final String? logsPath;
+  final int? logCount;
   final int annotationCount;
   final List<FeedbackReportAttachment> attachments;
   final List<FeedbackReportLogEntry> logs;
   final String? jiraIssueKey;
   final String? jiraIssueUrl;
+  final String? jiraExportState;
 
   String get reference => reportNumber == null ? kind.label : '${kind.label} #$reportNumber';
 
@@ -129,6 +135,7 @@ final class FeedbackReport {
       platform: context['platform'] as String? ?? 'unknown',
       appVersion: context['appVersion'] as String? ?? 'Unknown version',
       buildNumber: context['buildNumber'] as String?,
+      environment: context['environment'] as String?,
       screenName: context['screenName'] as String?,
       osVersion: context['operatingSystemVersion'] as String?,
       deviceModel: metadata['deviceModel'] as String? ?? metadata['device'] as String?,
@@ -136,11 +143,13 @@ final class FeedbackReport {
       capturedAt: _dateTimeValue(data['capturedAt']),
       screenshotPath: data['screenshotPath'] as String?,
       logsPath: data['logsPath'] as String?,
+      logCount: data['logCount'] is num ? (data['logCount'] as num).toInt() : null,
       annotationCount: data['annotationCount'] as int? ?? 0,
       attachments: _feedbackAttachments(data['attachments']),
       logs: _feedbackLogs(data['logs']),
       jiraIssueKey: data['jiraIssueKey'] as String?,
       jiraIssueUrl: data['jiraIssueUrl'] as String?,
+      jiraExportState: data['jiraExportState'] as String?,
     );
   }
 }
@@ -171,7 +180,7 @@ final class FeedbackReportAttachment {
   bool get isVideo => mimeType.startsWith('video/');
 
   static FeedbackReportAttachment? fromMap(Map<String, Object?> value) {
-    final path = value['path'];
+    final path = value['path'] ?? value['storagePath'];
     final fileName = value['fileName'];
     final mimeType = value['mimeType'];
     final sizeBytes = value['sizeBytes'];

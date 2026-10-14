@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -26,6 +27,18 @@ enum FeedbackPlatform {
   unknown,
 }
 
+/// Deployment environment supplied explicitly by the host application.
+enum FeedbackEnvironment {
+  /// Development builds.
+  dev,
+
+  /// Staging and acceptance testing builds.
+  stage,
+
+  /// Production builds.
+  prod,
+}
+
 /// Optional support context captured with a [FeedbackReport].
 ///
 /// The host application supplies this data explicitly. The SDK does not read
@@ -35,6 +48,7 @@ final class FeedbackContext {
   /// Creates explicitly supplied support context.
   FeedbackContext({
     this.appVersion,
+    this.environment,
     this.buildNumber,
     this.platform = FeedbackPlatform.unknown,
     this.operatingSystemVersion,
@@ -46,6 +60,9 @@ final class FeedbackContext {
 
   /// Human-readable application version supplied by the host.
   final String? appVersion;
+
+  /// Deployment environment. Omitted for hosts that do not distinguish environments.
+  final FeedbackEnvironment? environment;
 
   /// Build identifier supplied by the host.
   final String? buildNumber;
@@ -124,6 +141,7 @@ final class FeedbackReport {
     required this.createdAt,
     List<FeedbackStroke> strokes = const <FeedbackStroke>[],
     this.message,
+    this.title,
     this.context,
     this.kind = FeedbackReportKind.feedback,
     this.requestTaskCreation = false,
@@ -144,6 +162,10 @@ final class FeedbackReport {
 
   /// Optional tester description.
   final String? message;
+
+  /// Optional short report title for integrations (maximum 150 characters).
+  /// The description remains in [message]; destinations can provide a fallback.
+  final String? title;
 
   /// Optional application and support context captured with the report.
   final FeedbackContext? context;
@@ -325,7 +347,7 @@ typedef FeedbackContextProvider = FeedbackContext? Function();
 ///
 /// The host decides what is safe to include. Avoid credentials, message
 /// bodies, contact data, and any other sensitive values.
-typedef FeedbackLogsProvider = List<FeedbackLogEntry> Function();
+typedef FeedbackLogsProvider = FutureOr<List<FeedbackLogEntry>> Function();
 
 /// Opens a host-provided picker for image and video attachments.
 ///

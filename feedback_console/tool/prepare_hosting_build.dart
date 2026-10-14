@@ -31,7 +31,9 @@ self.addEventListener('activate', (event) => event.waitUntil((async () => {
 
   final originalBootstrap = bootstrap.readAsStringSync();
   final updatedBootstrap = originalBootstrap.replaceFirst(
-    RegExp(r'_flutter\.loader\.load\(\{\s*serviceWorkerSettings:\s*\{\s*serviceWorkerVersion: "[^"]+"\s*}\s*}\);'),
+    RegExp(
+      r'_flutter\.loader\.load\(\{\s*serviceWorkerSettings:\s*\{\s*serviceWorkerVersion: "[^"]+"\s*(?:/\*.*?\*/\s*)?}\s*}\);',
+    ),
     "_flutter.loader.load({config: {renderer: 'canvaskit'}});",
   );
   if (updatedBootstrap == originalBootstrap) {

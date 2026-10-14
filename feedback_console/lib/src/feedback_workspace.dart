@@ -1,24 +1,32 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'external_url_opener.dart';
 import 'feedback_report.dart';
+import 'feedback_report_deep_link.dart';
+import 'feedback_attachments.dart';
+import 'feedback_log_preview.dart';
+import 'console_section.dart';
+import 'console_theme.dart';
+import 'inbox_status_tabs.dart';
+import 'workspace_navigation.dart';
+import 'feedback_image_gallery.dart';
 import 'feedback_repository.dart';
 import 'feedback_shimmer.dart';
 import 'jira_issue_repository.dart';
 import 'jira_integration_workspace.dart';
+import 'slack_integration_workspace.dart';
+import 'firebase_console_config.dart';
 
-const _canvas = Color(0xFFF7F7F9);
-const _surface = Color(0xFFFFFFFF);
-const _ink = Color(0xFF25252C);
-const _muted = Color(0xFF6C6B76);
-const _primary = Color(0xFF4D2FE8);
+const _surface = ConsoleColors.surface;
+const _ink = ConsoleColors.ink;
+const _muted = ConsoleColors.muted;
+const _primary = ConsoleColors.accent;
 
 void _openExternalUrl(Uri uri) {
   openExternalUrl(uri);
 }
 
-enum _WorkspaceDestination { inbox, jira, access }
+enum _WorkspaceDestination { inbox, jira, slack, access }
 
 enum _FeedbackDateFilter { today, yesterday, last7Days }
 
@@ -47,7 +55,8 @@ bool _matchesDateFilter(DateTime? value, _FeedbackDateFilter? filter) {
 }
 
 class FeedbackWorkspace extends StatefulWidget {
-  const FeedbackWorkspace({super.key});
+  const FeedbackWorkspace({this.config = const FirebaseConsoleConfig.fromEnvironment(), super.key});
+  final FirebaseConsoleConfig config;
 
   @override
   State<FeedbackWorkspace> createState() => _FeedbackWorkspaceState();
@@ -59,6 +68,7 @@ class _FeedbackWorkspaceState extends State<FeedbackWorkspace> {
   FeedbackStatus? _status;
   _FeedbackDateFilter? _dateFilter;
   String? _platform;
+  String? _environment;
   String? _version;
   String _query = '';
 
@@ -72,34 +82,69 @@ class _FeedbackWorkspaceState extends State<FeedbackWorkspace> {
       final canCreateJiraTasks = canManageAccess || (snapshot.data?.canCreateJiraTasks ?? false);
       final destination = canManageAccess ? _destination : _WorkspaceDestination.inbox;
       return Scaffold(
-        backgroundColor: _canvas,
+        backgroundColor: _surface,
+        appBar: MediaQuery.sizeOf(context).width <= 600
+            ? AppBar(title: const Text('Capture Console'), toolbarHeight: 52)
+            : null,
+        drawer: MediaQuery.sizeOf(context).width <= 600
+            ? Drawer(
+                child: WorkspaceNavigation(
+                  selectedIndex: destination.index,
+                  canManageAccess: canManageAccess,
+                  expanded: true,
+                  onSelected: (index) {
+                    setState(() => _destination = _WorkspaceDestination.values[index]);
+                    Navigator.pop(context);
+                  },
+                ),
+              )
+            : null,
         body: Row(
           children: <Widget>[
-            _WorkspaceRail(
-              destination: destination,
-              canManageAccess: canManageAccess,
-              onDestinationChanged: (destination) => setState(() => _destination = destination),
-            ),
-            const VerticalDivider(width: 1),
+            if (MediaQuery.sizeOf(context).width > 600) ...[
+              WorkspaceNavigation(
+                selectedIndex: destination.index,
+                canManageAccess: canManageAccess,
+                expanded: MediaQuery.sizeOf(context).width >= 900,
+                onSelected: (index) => setState(() => _destination = _WorkspaceDestination.values[index]),
+              ),
+              const VerticalDivider(width: 1),
+            ],
             Expanded(
               child: SafeArea(
                 child: switch (destination) {
-                  _WorkspaceDestination.inbox => _InboxWorkspace(
-                    repository: _repository,
-                    canDelete: canManageAccess,
-                    canCreateJiraTasks: canCreateJiraTasks,
-                    query: _query,
-                    status: _status,
-                    dateFilter: _dateFilter,
-                    platform: _platform,
-                    version: _version,
-                    onQueryChanged: (query) => setState(() => _query = query),
-                    onStatusChanged: (status) => setState(() => _status = status),
-                    onDateFilterChanged: (filter) => setState(() => _dateFilter = filter),
-                    onPlatformChanged: (platform) => setState(() => _platform = platform),
-                    onVersionChanged: (version) => setState(() => _version = version),
+                  _WorkspaceDestination.inbox => FeedbackReportDeepLink(
+                    reports: _repository.watchReports(),
+                    onOpen: (report) => showDialog<void>(
+                      context: context,
+                      builder: (context) => _FeedbackDetailDialog(
+                        reports: [report],
+                        initialReportIndex: 0,
+                        repository: _repository,
+                        canDelete: canManageAccess,
+                        canCreateJiraTasks: canCreateJiraTasks,
+                      ),
+                    ),
+                    child: _InboxWorkspace(
+                      repository: _repository,
+                      canDelete: canManageAccess,
+                      canCreateJiraTasks: canCreateJiraTasks,
+                      query: _query,
+                      status: _status,
+                      dateFilter: _dateFilter,
+                      platform: _platform,
+                      environment: _environment,
+                      version: _version,
+                      onQueryChanged: (query) => setState(() => _query = query),
+                      onStatusChanged: (status) => setState(() => _status = status),
+                      onDateFilterChanged: (filter) => setState(() => _dateFilter = filter),
+                      onPlatformChanged: (platform) => setState(() => _platform = platform),
+                      onEnvironmentChanged: (value) => setState(() => _environment = value),
+                      onVersionChanged: (version) => setState(() => _version = version),
+                    ),
                   ),
                   _WorkspaceDestination.jira => const JiraIntegrationWorkspace(),
+                  _WorkspaceDestination.slack => SlackIntegrationWorkspace(config: widget.config),
                   _WorkspaceDestination.access => _AccessWorkspace(repository: _repository),
                 },
               ),
@@ -108,94 +153,6 @@ class _FeedbackWorkspaceState extends State<FeedbackWorkspace> {
         ),
       );
     },
-  );
-}
-
-class _WorkspaceRail extends StatelessWidget {
-  const _WorkspaceRail({required this.destination, required this.canManageAccess, required this.onDestinationChanged});
-
-  final _WorkspaceDestination destination;
-  final bool canManageAccess;
-  final ValueChanged<_WorkspaceDestination> onDestinationChanged;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 84,
-    color: _surface,
-    child: Column(
-      children: <Widget>[
-        const SizedBox(height: 20),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(color: const Color(0xFFEEE8FF), borderRadius: BorderRadius.circular(12)),
-          child: const Center(child: Icon(Icons.forum_outlined, color: _primary, size: 21)),
-        ),
-        const SizedBox(height: 24),
-        _RailDestination(
-          icon: Icons.inbox_outlined,
-          label: 'Inbox',
-          selected: destination == _WorkspaceDestination.inbox,
-          onTap: () => onDestinationChanged(_WorkspaceDestination.inbox),
-        ),
-        if (canManageAccess) ...<Widget>[
-          const SizedBox(height: 12),
-          _RailDestination(
-            icon: Icons.integration_instructions_outlined,
-            label: 'Jira',
-            selected: destination == _WorkspaceDestination.jira,
-            onTap: () => onDestinationChanged(_WorkspaceDestination.jira),
-          ),
-        ],
-        if (canManageAccess) ...<Widget>[
-          const SizedBox(height: 12),
-          _RailDestination(
-            icon: Icons.people_outline,
-            label: 'Access',
-            selected: destination == _WorkspaceDestination.access,
-            onTap: () => onDestinationChanged(_WorkspaceDestination.access),
-          ),
-        ],
-        const Spacer(),
-        IconButton(
-          tooltip: 'Sign out',
-          onPressed: FirebaseAuth.instance.signOut,
-          icon: const Icon(Icons.logout_outlined, color: _muted),
-        ),
-        const SizedBox(height: 12),
-      ],
-    ),
-  );
-}
-
-class _RailDestination extends StatelessWidget {
-  const _RailDestination({required this.icon, required this.label, required this.selected, required this.onTap});
-
-  final IconData icon;
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(10),
-    child: Container(
-      width: 68,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: selected ? const Color(0xFFEEE8FF) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        children: <Widget>[
-          Icon(icon, size: 20, color: selected ? _primary : _muted),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 11, color: selected ? _primary : _muted)),
-        ],
-      ),
-    ),
   );
 }
 
@@ -208,11 +165,13 @@ class _InboxWorkspace extends StatelessWidget {
     required this.status,
     required this.dateFilter,
     required this.platform,
+    required this.environment,
     required this.version,
     required this.onQueryChanged,
     required this.onStatusChanged,
     required this.onDateFilterChanged,
     required this.onPlatformChanged,
+    required this.onEnvironmentChanged,
     required this.onVersionChanged,
   });
 
@@ -223,11 +182,13 @@ class _InboxWorkspace extends StatelessWidget {
   final FeedbackStatus? status;
   final _FeedbackDateFilter? dateFilter;
   final String? platform;
+  final String? environment;
   final String? version;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<FeedbackStatus?> onStatusChanged;
   final ValueChanged<_FeedbackDateFilter?> onDateFilterChanged;
   final ValueChanged<String?> onPlatformChanged;
+  final ValueChanged<String?> onEnvironmentChanged;
   final ValueChanged<String?> onVersionChanged;
 
   @override
@@ -248,13 +209,23 @@ class _InboxWorkspace extends StatelessWidget {
                 normalizedQuery.isEmpty ||
                 report.message.toLowerCase().contains(normalizedQuery) ||
                 report.applicationName.toLowerCase().contains(normalizedQuery);
-            return matchesStatus && matchesDate && matchesPlatform && matchesVersion && matchesQuery;
+            return matchesStatus &&
+                matchesDate &&
+                matchesPlatform &&
+                matchesVersion &&
+                matchesQuery &&
+                (environment == null || report.environment == environment);
           })
           .toList(growable: false);
       return _WorkspacePage(
-        title: 'Feedback',
-        subtitle: 'Visual reports from connected applications.',
-        trailing: const SizedBox.shrink(),
+        title: 'Inbox',
+        subtitle: 'Review what your testers see. Turn feedback into fixes.',
+        trailing: MediaQuery.sizeOf(context).width < 700
+            ? const SizedBox.shrink()
+            : Text(
+                '${visibleReports.length} ${visibleReports.length == 1 ? 'report' : 'reports'}',
+                style: const TextStyle(color: _muted, fontSize: 13),
+              ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -267,12 +238,18 @@ class _InboxWorkspace extends StatelessWidget {
                     canDelete: canDelete,
                     canCreateJiraTasks: canCreateJiraTasks,
                     hasFilter:
-                        query.isNotEmpty || status != null || dateFilter != null || platform != null || version != null,
+                        query.isNotEmpty ||
+                        status != null ||
+                        dateFilter != null ||
+                        platform != null ||
+                        version != null ||
+                        environment != null,
                     onClearFilters: () {
                       onQueryChanged('');
                       onStatusChanged(null);
                       onDateFilterChanged(null);
                       onPlatformChanged(null);
+                      onEnvironmentChanged(null);
                       onVersionChanged(null);
                     },
                   );
@@ -283,28 +260,23 @@ class _InboxWorkspace extends StatelessWidget {
                     status: status,
                     dateFilter: dateFilter,
                     platform: platform,
+                    environment: environment,
                     version: version,
                     onQueryChanged: onQueryChanged,
                     onStatusChanged: onStatusChanged,
                     onDateFilterChanged: onDateFilterChanged,
                     onPlatformChanged: onPlatformChanged,
+                    onEnvironmentChanged: onEnvironmentChanged,
                     onVersionChanged: onVersionChanged,
                   );
-                  if (constraints.maxWidth < 860) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        filters,
-                        const SizedBox(height: 20),
-                        Expanded(child: results),
-                      ],
-                    );
-                  }
-                  return Row(
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      SizedBox(width: 264, child: filters),
-                      const VerticalDivider(width: 40),
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.55),
+                        child: SingleChildScrollView(child: filters),
+                      ),
+                      const Divider(height: 1),
                       Expanded(child: results),
                     ],
                   );
@@ -331,7 +303,10 @@ class _WorkspacePage extends StatelessWidget {
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 1280),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(40, 32, 40, 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.sizeOf(context).width < 700 ? 16 : 32,
+          vertical: MediaQuery.sizeOf(context).width < 700 ? 16 : 28,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -341,7 +316,15 @@ class _WorkspacePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: _ink)),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: _ink,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -1,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Text(subtitle, style: const TextStyle(color: _muted)),
                     ],
@@ -350,7 +333,7 @@ class _WorkspacePage extends StatelessWidget {
                 trailing,
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             Expanded(child: child),
           ],
         ),
@@ -359,7 +342,7 @@ class _WorkspacePage extends StatelessWidget {
   );
 }
 
-class _InboxFilterPanel extends StatelessWidget {
+class _InboxFilterPanel extends StatefulWidget {
   const _InboxFilterPanel({
     required this.reports,
     required this.resultCount,
@@ -367,11 +350,13 @@ class _InboxFilterPanel extends StatelessWidget {
     required this.status,
     required this.dateFilter,
     required this.platform,
+    required this.environment,
     required this.version,
     required this.onQueryChanged,
     required this.onStatusChanged,
     required this.onDateFilterChanged,
     required this.onPlatformChanged,
+    required this.onEnvironmentChanged,
     required this.onVersionChanged,
   });
 
@@ -381,108 +366,164 @@ class _InboxFilterPanel extends StatelessWidget {
   final FeedbackStatus? status;
   final _FeedbackDateFilter? dateFilter;
   final String? platform;
+  final String? environment;
   final String? version;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<FeedbackStatus?> onStatusChanged;
   final ValueChanged<_FeedbackDateFilter?> onDateFilterChanged;
   final ValueChanged<String?> onPlatformChanged;
+  final ValueChanged<String?> onEnvironmentChanged;
   final ValueChanged<String?> onVersionChanged;
 
   @override
+  State<_InboxFilterPanel> createState() => _InboxFilterPanelState();
+}
+
+class _InboxFilterPanelState extends State<_InboxFilterPanel> {
+  bool _showFilters = false;
+  @override
   Widget build(BuildContext context) {
-    final hasActiveFilters =
-        query.isNotEmpty || status != null || dateFilter != null || platform != null || version != null;
-    final platforms = reports.map((report) => report.platform).where((value) => value.isNotEmpty).toSet().toList()
-      ..sort();
-    final versions = reports.map(_versionFilterValue).where((value) => value.isNotEmpty).toSet().toList()..sort();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        const Text('Filter reports', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 14),
-        TextField(
-          onChanged: onQueryChanged,
-          decoration: const InputDecoration(
-            hintText: 'Search feedback',
-            prefixIcon: Icon(Icons.search, color: _muted),
+    final reports = widget.reports;
+    final query = widget.query;
+    final status = widget.status;
+    final dateFilter = widget.dateFilter;
+    final platform = widget.platform;
+    final environment = widget.environment;
+    final version = widget.version;
+    final onQueryChanged = widget.onQueryChanged;
+    final onStatusChanged = widget.onStatusChanged;
+    final onDateFilterChanged = widget.onDateFilterChanged;
+    final onPlatformChanged = widget.onPlatformChanged;
+    final onEnvironmentChanged = widget.onEnvironmentChanged;
+    final onVersionChanged = widget.onVersionChanged;
+
+    final platforms = reports.map((r) => r.platform).where((v) => v.isNotEmpty).toSet().toList()..sort();
+    final versions = reports.map(_versionFilterValue).where((v) => v.isNotEmpty).toSet().toList()..sort();
+    final activeCount = [dateFilter, platform, environment, version].where((v) => v != null).length;
+    void clear() {
+      onQueryChanged('');
+      onStatusChanged(null);
+      onDateFilterChanged(null);
+      onPlatformChanged(null);
+      onEnvironmentChanged(null);
+      onVersionChanged(null);
+    }
+
+    return ConsoleSection(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _InboxSearch(query: query, onChanged: onQueryChanged),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => setState(() => _showFilters = !_showFilters),
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                label: Text(activeCount == 0 ? 'Filters' : 'Filters · $activeCount'),
+              ),
+              if (query.isNotEmpty || status != null || activeCount > 0)
+                IconButton(tooltip: 'Clear filters', onPressed: clear, icon: const Icon(Icons.filter_alt_off_outlined)),
+            ],
           ),
-        ),
-        const SizedBox(height: 14),
-        _PanelFilterMenu<FeedbackStatus?>(
-          label: 'Status',
-          value: status?.label ?? 'All reports',
-          onSelected: onStatusChanged,
-          items: <PopupMenuEntry<FeedbackStatus?>>[
-            PopupMenuItem<FeedbackStatus?>(
-              value: null,
-              onTap: () => onStatusChanged(null),
-              child: Text('All reports (${reports.length})'),
-            ),
-            ...FeedbackStatus.values.map(
-              (item) => PopupMenuItem<FeedbackStatus?>(
-                value: item,
-                child: Text('${item.label} (${reports.where((report) => report.status == item).length})'),
+          const SizedBox(height: 8),
+          InboxStatusTabs(reports: reports, selected: status, onSelected: onStatusChanged),
+          if (_showFilters)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: LayoutBuilder(
+                builder: (context, constraints) => Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: constraints.maxWidth < 500 ? constraints.maxWidth : 190,
+                      child: _PanelFilterMenu<_FeedbackDateFilter?>(
+                        label: 'Reported',
+                        value: dateFilter == null ? 'Any time' : _dateFilterLabel(dateFilter),
+                        onSelected: onDateFilterChanged,
+                        items: [
+                          PopupMenuItem(
+                            value: null,
+                            onTap: () => onDateFilterChanged(null),
+                            child: const Text('Any time'),
+                          ),
+                          for (final f in _FeedbackDateFilter.values)
+                            PopupMenuItem(value: f, child: Text(_dateFilterLabel(f))),
+                        ],
+                      ),
+                    ),
+                    for (final spec in [
+                      ('Platform', platform, platforms, onPlatformChanged),
+                      ('Environment', environment, ['dev', 'stage', 'prod'], onEnvironmentChanged),
+                      ('Version', version, versions, onVersionChanged),
+                    ])
+                      SizedBox(
+                        width: constraints.maxWidth < 500 ? constraints.maxWidth : 190,
+                        child: _PanelFilterMenu<String?>(
+                          label: spec.$1,
+                          value: spec.$2 ?? 'All',
+                          onSelected: spec.$4,
+                          items: [
+                            PopupMenuItem(value: null, onTap: () => spec.$4(null), child: const Text('All')),
+                            for (final v in spec.$3) PopupMenuItem(value: v, child: Text(v)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _PanelFilterMenu<_FeedbackDateFilter?>(
-          label: 'Reported',
-          value: dateFilter == null ? 'Any time' : _dateFilterLabel(dateFilter!),
-          onSelected: onDateFilterChanged,
-          items: <PopupMenuEntry<_FeedbackDateFilter?>>[
-            PopupMenuItem<_FeedbackDateFilter?>(
-              value: null,
-              onTap: () => onDateFilterChanged(null),
-              child: const Text('Any time'),
-            ),
-            ..._FeedbackDateFilter.values.map(
-              (filter) => PopupMenuItem<_FeedbackDateFilter?>(value: filter, child: Text(_dateFilterLabel(filter))),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _PanelFilterMenu<String?>(
-          label: 'Platform',
-          value: platform ?? 'All platforms',
-          onSelected: onPlatformChanged,
-          items: <PopupMenuEntry<String?>>[
-            PopupMenuItem<String?>(
-              value: null,
-              onTap: () => onPlatformChanged(null),
-              child: const Text('All platforms'),
-            ),
-            ...platforms.map((item) => PopupMenuItem<String?>(value: item, child: Text(item))),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _PanelFilterMenu<String?>(
-          label: 'Version',
-          value: version ?? 'All versions',
-          onSelected: onVersionChanged,
-          items: <PopupMenuEntry<String?>>[
-            PopupMenuItem<String?>(value: null, onTap: () => onVersionChanged(null), child: const Text('All versions')),
-            ...versions.map((item) => PopupMenuItem<String?>(value: item, child: Text(item))),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Text('$resultCount ${resultCount == 1 ? 'result' : 'results'}', style: const TextStyle(color: _muted)),
-        if (hasActiveFilters)
-          TextButton(
-            onPressed: () {
-              onQueryChanged('');
-              onStatusChanged(null);
-              onDateFilterChanged(null);
-              onPlatformChanged(null);
-              onVersionChanged(null);
-            },
-            style: TextButton.styleFrom(alignment: Alignment.centerLeft, padding: EdgeInsets.zero),
-            child: const Text('Clear filters'),
-          ),
-      ],
+        ],
+      ),
     );
   }
+}
+
+class _InboxSearch extends StatefulWidget {
+  const _InboxSearch({required this.query, required this.onChanged});
+  final String query;
+  final ValueChanged<String> onChanged;
+  @override
+  State<_InboxSearch> createState() => _InboxSearchState();
+}
+
+class _InboxSearchState extends State<_InboxSearch> {
+  late final _controller = TextEditingController(text: widget.query);
+  @override
+  void didUpdateWidget(covariant _InboxSearch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_controller.text != widget.query) {
+      _controller.value = TextEditingValue(
+        text: widget.query,
+        selection: TextSelection.collapsed(offset: widget.query.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: _controller,
+    style: TextStyle(fontSize: MediaQuery.sizeOf(context).width <= 600 ? 16 : 14),
+    onChanged: widget.onChanged,
+    decoration: InputDecoration(
+      hintText: 'Search feedback…',
+      filled: false,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      prefixIcon: const Icon(Icons.search),
+      suffixIcon: widget.query.isEmpty
+          ? null
+          : IconButton(tooltip: 'Clear search', onPressed: () => widget.onChanged(''), icon: const Icon(Icons.close)),
+    ),
+  );
 }
 
 class _PanelFilterMenu<T> extends StatelessWidget {
@@ -529,32 +570,18 @@ class _FeedbackResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (reports.isEmpty) return _EmptyReports(hasFilter: hasFilter, onClearFilters: onClearFilters);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = switch (constraints.maxWidth) {
-          >= 980 => 3,
-          >= 620 => 2,
-          _ => 1,
-        };
-        return GridView.builder(
-          padding: const EdgeInsets.only(bottom: 24),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: crossAxisCount == 1 ? 2.1 : 0.88,
-          ),
-          itemCount: reports.length,
-          itemBuilder: (context, index) => _FeedbackCard(
-            report: reports[index],
-            reports: reports,
-            reportIndex: index,
-            repository: repository,
-            canDelete: canDelete,
-            canCreateJiraTasks: canCreateJiraTasks,
-          ),
-        );
-      },
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: reports.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) => _FeedbackCard(
+        report: reports[index],
+        reports: reports,
+        reportIndex: index,
+        repository: repository,
+        canDelete: canDelete,
+        canCreateJiraTasks: canCreateJiraTasks,
+      ),
     );
   }
 }
@@ -594,61 +621,78 @@ class _FeedbackCard extends StatelessWidget {
     button: true,
     label: 'Open feedback details',
     child: Material(
-      color: _surface,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
+      color: Colors.transparent,
       child: InkWell(
+        hoverColor: ConsoleColors.wash,
+        focusColor: ConsoleColors.wash,
         onTap: () => _openDetails(context),
-        hoverColor: const Color(0xFFF7F4FF),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(
-              child: _FeedbackScreenshotPreview(report: report, repository: repository),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-              child: Column(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 540;
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
+                children: [
+                  SizedBox(
+                    width: compact ? 44 : 48,
+                    height: compact ? 68 : 72,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: _FeedbackScreenshotPreview(report: report, repository: repository),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           report.message.isEmpty ? 'No description' : report.message,
-                          maxLines: 2,
+                          maxLines: compact ? 3 : 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500, height: 1.4),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _FeedbackStatusMenu(report: report, repository: repository),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${report.applicationName} · ${_platformLabel(report)} · ${_versionLabel(report)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _muted, fontSize: 12),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          _dateTimeLabel(context, report.capturedAt ?? report.createdAt),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${report.applicationName} · ${report.environment ?? 'Unspecified'} · ${report.platform}',
                           style: const TextStyle(color: _muted, fontSize: 12),
                         ),
-                      ),
-                      if (report.jiraIssueKey case final issueKey?)
-                        _JiraIssueLink(issueKey: issueKey, issueUrl: report.jiraIssueUrl),
-                    ],
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              _dateTimeLabel(context, report.capturedAt ?? report.createdAt),
+                              style: const TextStyle(color: _muted, fontSize: 12),
+                            ),
+                            if (compact) _FeedbackStatusMenu(report: report, repository: repository),
+                            if (report.attachments.isNotEmpty)
+                              Text(
+                                '${report.attachments.length} attachments',
+                                style: const TextStyle(color: _muted, fontSize: 12),
+                              ),
+                            if (report.jiraIssueKey case final issueKey?)
+                              _JiraIssueLink(issueKey: issueKey, issueUrl: report.jiraIssueUrl),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                  if (!compact) ...[
+                    const SizedBox(width: 24),
+                    _FeedbackStatusMenu(report: report, repository: repository),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.chevron_right, size: 18, color: _muted),
+                  ],
                 ],
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     ),
@@ -656,10 +700,11 @@ class _FeedbackCard extends StatelessWidget {
 }
 
 class _FeedbackScreenshotPreview extends StatefulWidget {
-  const _FeedbackScreenshotPreview({required this.report, required this.repository});
+  const _FeedbackScreenshotPreview({required this.report, required this.repository, this.fit = BoxFit.contain});
 
   final FeedbackReport report;
   final FeedbackRepository repository;
+  final BoxFit fit;
 
   @override
   State<_FeedbackScreenshotPreview> createState() => _FeedbackScreenshotPreviewState();
@@ -683,23 +728,25 @@ class _FeedbackScreenshotPreviewState extends State<_FeedbackScreenshotPreview> 
   }
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFFF0EFF5),
-    child: FutureBuilder<String?>(
-      future: _screenshotUrl,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const FeedbackThumbnailShimmer(width: double.infinity, height: double.infinity);
-        }
-        final url = snapshot.data;
-        if (url == null) return const _ThumbnailFallback();
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => const _ThumbnailFallback(),
-        );
-      },
+  Widget build(BuildContext context) => SizedBox.expand(
+    child: ColoredBox(
+      color: ConsoleColors.wash,
+      child: FutureBuilder<String?>(
+        future: _screenshotUrl,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const FeedbackThumbnailShimmer(width: double.infinity, height: double.infinity);
+          }
+          final url = snapshot.data;
+          if (url == null) return const _ThumbnailFallback();
+          return Image.network(
+            url,
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const _ThumbnailFallback(),
+          );
+        },
+      ),
     ),
   );
 }
@@ -738,8 +785,8 @@ class _InboxLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _WorkspacePage(
-    title: 'Feedback',
-    subtitle: 'Visual reports from connected applications.',
+    title: 'Inbox',
+    subtitle: 'Review what your testers see. Turn feedback into fixes.',
     trailing: const SizedBox.shrink(),
     child: ListView.separated(
       itemCount: 6,
@@ -749,9 +796,20 @@ class _InboxLoading extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: <Widget>[
-            FeedbackThumbnailShimmer(width: 64, height: 56),
+            FeedbackThumbnailShimmer(width: 48, height: 72),
             SizedBox(width: 16),
-            Expanded(child: FeedbackThumbnailShimmer(width: double.infinity, height: 16)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FeedbackThumbnailShimmer(width: 220, height: 16),
+                  SizedBox(height: 10),
+                  FeedbackThumbnailShimmer(width: 160, height: 12),
+                  SizedBox(height: 8),
+                  FeedbackThumbnailShimmer(width: 96, height: 12),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -852,7 +910,7 @@ class _ThumbnailFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
-    color: Color(0xFFF0EFF5),
+    color: ConsoleColors.wash,
     child: Center(child: Icon(Icons.image_outlined, color: _muted)),
   );
 }
@@ -870,14 +928,22 @@ class _StatusBadge extends StatelessWidget {
       FeedbackStatus.resolved => (const Color(0xFFE6F5EB), const Color(0xFF277A48)),
       FeedbackStatus.rejected => (const Color(0xFFFFE9E7), const Color(0xFFB3261E)),
     };
-    return DecoratedBox(
-      decoration: BoxDecoration(color: colors.$1, borderRadius: BorderRadius.circular(999)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        child: Text(
-          status.label,
-          style: TextStyle(color: colors.$2, fontWeight: FontWeight.w600),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: colors.$2, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status.label,
+            style: TextStyle(color: colors.$2, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
     );
   }
@@ -929,26 +995,35 @@ class _FeedbackDetailDialogState extends State<_FeedbackDetailDialog> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.all(32),
+    insetPadding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 700 ? 8 : 24),
     child: ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: 1360,
-        maxHeight: (MediaQuery.sizeOf(context).height - 48).clamp(480.0, 900.0).toDouble(),
+        maxHeight: (MediaQuery.sizeOf(context).height - 48).clamp(0.0, 1000.0).toDouble(),
       ),
       child: Column(
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 20, 20, 16),
+            padding: EdgeInsets.fromLTRB(MediaQuery.sizeOf(context).width < 700 ? 16 : 28, 20, 16, 16),
             child: Row(
               children: <Widget>[
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(_report.reference, style: Theme.of(context).textTheme.titleLarge),
+                      Text(
+                        'Feedback report',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, letterSpacing: -0.5),
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         '${_report.applicationName} · ${_dateTimeLabel(context, _report.capturedAt ?? _report.createdAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: _muted),
                       ),
                     ],
@@ -1000,34 +1075,40 @@ class _FeedbackDetailDialogState extends State<_FeedbackDetailDialog> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: _DetailScreenshot(report: _report, repository: widget.repository),
-                  ),
-                ),
-                const VerticalDivider(width: 1),
-                SizedBox(
-                  width: 344,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
-                    child: SingleChildScrollView(
-                      child: _FeedbackDetailSidebar(
-                        report: _report,
-                        repository: widget.repository,
-                        canCreateJiraTasks: widget.canCreateJiraTasks,
-                        isCreatingJiraIssue: _isCreatingJiraIssue,
-                        jiraError: _jiraError,
-                        createdJiraIssue: _createdJiraIssue,
-                        onCreateJiraIssue: _createJiraIssue,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final sidebar = _FeedbackDetailSidebar(
+                  report: _report,
+                  repository: widget.repository,
+                  canCreateJiraTasks: widget.canCreateJiraTasks,
+                  isCreatingJiraIssue: _isCreatingJiraIssue,
+                  jiraError: _jiraError,
+                  createdJiraIssue: _createdJiraIssue,
+                  onCreateJiraIssue: _createJiraIssue,
+                  inlineScreenshot: constraints.maxWidth < 760,
+                );
+                final image = _DetailScreenshot(report: _report, repository: widget.repository);
+                if (constraints.maxWidth < 760) {
+                  return ListView(padding: const EdgeInsets.all(16), children: [sidebar]);
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: ColoredBox(
+                        color: ConsoleColors.canvas,
+                        child: Padding(padding: const EdgeInsets.all(24), child: image),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      flex: 2,
+                      child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: sidebar),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -1074,6 +1155,7 @@ class _FeedbackDetailDialogState extends State<_FeedbackDetailDialog> {
       switch (result) {
         case final JiraIssueCreationSuccess success:
           _createdJiraIssue = success;
+          _jiraError = success.warning;
         case JiraIssueCreationFailure(:final message):
           _jiraError = message;
       }
@@ -1186,147 +1268,40 @@ final class _JiraTaskDraft {
   final bool includeAttachments;
 }
 
-class _DetailScreenshot extends StatefulWidget {
+class _DetailScreenshot extends StatelessWidget {
   const _DetailScreenshot({required this.report, required this.repository});
-
   final FeedbackReport report;
   final FeedbackRepository repository;
-
   @override
-  State<_DetailScreenshot> createState() => _DetailScreenshotState();
-}
-
-class _DetailScreenshotState extends State<_DetailScreenshot> {
-  final _transformationController = TransformationController();
-  late Future<String?> _screenshotUrl;
-  double _scale = 1;
-  bool _showControls = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _screenshotUrl = widget.repository.screenshotUrlFor(widget.report);
-  }
-
-  @override
-  void didUpdateWidget(covariant _DetailScreenshot oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.report.id == widget.report.id && oldWidget.report.screenshotPath == widget.report.screenshotPath) {
-      return;
-    }
-    _screenshotUrl = widget.repository.screenshotUrlFor(widget.report);
-    _scale = 1;
-    _showControls = false;
-    _transformationController.value = Matrix4.identity();
-  }
-
-  @override
-  void dispose() {
-    _transformationController.dispose();
-    super.dispose();
-  }
-
-  void _setScale(double value) {
-    final scale = value.clamp(1.0, 2.0).toDouble();
-    setState(() {
-      _scale = scale;
-      _transformationController.value = Matrix4.diagonal3Values(scale, scale, 1);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFFF1F1F4),
-    child: FutureBuilder<String?>(
-      future: _screenshotUrl,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: FeedbackThumbnailShimmer(width: 420, height: 280));
-        }
-        final url = snapshot.data;
-        if (url == null) return const _ThumbnailFallback();
-        return LayoutBuilder(
-          builder: (context, constraints) => MouseRegion(
-            onEnter: (_) => setState(() => _showControls = true),
-            onExit: (_) => setState(() => _showControls = false),
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: 1,
-                  maxScale: 2,
-                  boundaryMargin: const EdgeInsets.all(160),
-                  onInteractionEnd: (_) => setState(() => _scale = _transformationController.value.getMaxScaleOnAxis()),
-                  child: Center(
-                    child: RepaintBoundary(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _showControls = true),
-                        onDoubleTap: () => _setScale(_scale == 1 ? 2 : 1),
-                        child: Image.network(
-                          url,
-                          width: constraints.maxWidth,
-                          height: constraints.maxHeight,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: IgnorePointer(
-                    ignoring: !_showControls,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 160),
-                      curve: Curves.easeOut,
-                      opacity: _showControls ? 1 : 0,
-                      child: Center(
-                        child: Material(
-                          color: _surface,
-                          elevation: 2,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                IconButton(
-                                  tooltip: 'Zoom out',
-                                  onPressed: _scale <= 1 ? null : () => _setScale(_scale - 0.25),
-                                  icon: const Icon(Icons.remove_rounded),
-                                ),
-                                TextButton(onPressed: () => _setScale(1), child: Text('${(_scale * 100).round()}%')),
-                                IconButton(
-                                  tooltip: 'Zoom in',
-                                  onPressed: _scale >= 2 ? null : () => _setScale(_scale + 0.25),
-                                  icon: const Icon(Icons.add_rounded),
-                                ),
-                                const VerticalDivider(width: 1, indent: 8, endIndent: 8),
-                                TextButton(onPressed: () => _setScale(1), child: const Text('Fit')),
-                                const VerticalDivider(width: 1, indent: 8, endIndent: 8),
-                                TextButton.icon(
-                                  onPressed: () => _openExternalUrl(Uri.parse(url)),
-                                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                                  label: const Text('Open original'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text('Screenshot', overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
+          ),
+          TextButton.icon(
+            onPressed: () => openFeedbackGallery(context, report: report, repository: repository),
+            icon: const Icon(Icons.open_in_full, size: 16),
+            label: const Text('Open gallery'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Material(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: InkWell(
+              onTap: () => openFeedbackGallery(context, report: report, repository: repository),
+              child: _FeedbackScreenshotPreview(report: report, repository: repository, fit: BoxFit.contain),
             ),
           ),
-        );
-      },
-    ),
+        ),
+      ),
+    ],
   );
 }
 
@@ -1339,6 +1314,7 @@ class _FeedbackDetailSidebar extends StatelessWidget {
     required this.jiraError,
     required this.createdJiraIssue,
     required this.onCreateJiraIssue,
+    this.inlineScreenshot = false,
   });
 
   final FeedbackReport report;
@@ -1348,21 +1324,23 @@ class _FeedbackDetailSidebar extends StatelessWidget {
   final String? jiraError;
   final JiraIssueCreationSuccess? createdJiraIssue;
   final VoidCallback onCreateJiraIssue;
+  final bool inlineScreenshot;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: <Widget>[
-      const _DetailSectionTitle('Description'),
-      const SizedBox(height: 8),
-      Text(report.message.isEmpty ? 'No description provided.' : report.message),
+      _ReportOverview(report: report, repository: repository),
       const SizedBox(height: 28),
-      const _DetailSectionTitle('Status'),
-      const SizedBox(height: 6),
-      _FeedbackStatusMenu(report: report, repository: repository),
-      const SizedBox(height: 28),
+      if (inlineScreenshot) ...[
+        SizedBox(
+          height: 420,
+          child: _DetailScreenshot(report: report, repository: repository),
+        ),
+        const SizedBox(height: 28),
+      ],
       if (report.attachments.isNotEmpty) ...<Widget>[
-        _FeedbackAttachments(report: report, repository: repository),
+        FeedbackAttachments(report: report, repository: repository),
         const SizedBox(height: 28),
       ],
       const _DetailSectionTitle('Jira'),
@@ -1379,7 +1357,7 @@ class _FeedbackDetailSidebar extends StatelessWidget {
       const _DetailSectionTitle('Technical details'),
       const SizedBox(height: 10),
       _FeedbackMetadata(report: report),
-      if (report.logs.isNotEmpty) ...<Widget>[
+      if (report.logs.isNotEmpty || report.logsPath != null) ...<Widget>[
         const SizedBox(height: 28),
         _FeedbackLogs(report: report, repository: repository),
       ],
@@ -1389,122 +1367,25 @@ class _FeedbackDetailSidebar extends StatelessWidget {
   );
 }
 
-class _FeedbackAttachments extends StatelessWidget {
-  const _FeedbackAttachments({required this.report, required this.repository});
-
+class _ReportOverview extends StatelessWidget {
+  const _ReportOverview({required this.report, required this.repository});
   final FeedbackReport report;
   final FeedbackRepository repository;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
-    children: <Widget>[
-      _DetailSectionTitle('Attachments · ${report.attachments.length}'),
-      const SizedBox(height: 10),
-      ...report.attachments.map(
-        (attachment) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _FeedbackAttachmentTile(attachment: attachment, repository: repository),
-        ),
+    children: [
+      _FeedbackStatusMenu(report: report, repository: repository),
+      const SizedBox(height: 12),
+      SelectableText(
+        report.message.isEmpty ? 'No description provided.' : report.message,
+        style: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(fontSize: 20, height: 1.45, fontWeight: FontWeight.w500, letterSpacing: -0.4),
       ),
     ],
   );
-}
-
-class _FeedbackAttachmentTile extends StatefulWidget {
-  const _FeedbackAttachmentTile({required this.attachment, required this.repository});
-
-  final FeedbackReportAttachment attachment;
-  final FeedbackRepository repository;
-
-  @override
-  State<_FeedbackAttachmentTile> createState() => _FeedbackAttachmentTileState();
-}
-
-class _FeedbackAttachmentTileState extends State<_FeedbackAttachmentTile> {
-  late Future<String?> _url;
-
-  @override
-  void initState() {
-    super.initState();
-    _url = widget.repository.attachmentUrlFor(widget.attachment);
-  }
-
-  @override
-  void didUpdateWidget(covariant _FeedbackAttachmentTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.attachment.path != widget.attachment.path) {
-      _url = widget.repository.attachmentUrlFor(widget.attachment);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<String?>(
-    future: _url,
-    builder: (context, snapshot) {
-      final url = snapshot.data;
-      final uri = url == null ? null : Uri.tryParse(url);
-      Widget buildTile(VoidCallback? onOpen) => Material(
-        color: const Color(0xFFF7F6FA),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: uri == null ? null : onOpen,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: <Widget>[
-                SizedBox(
-                  width: 42,
-                  height: 42,
-                  child: widget.attachment.isVideo
-                      ? const DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE9E5F7),
-                            borderRadius: BorderRadius.all(Radius.circular(7)),
-                          ),
-                          child: Icon(Icons.videocam_outlined, color: _primary),
-                        )
-                      : url == null
-                      ? const FeedbackThumbnailShimmer(width: 42, height: 42)
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const _ThumbnailFallback(),
-                          ),
-                        ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(widget.attachment.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${widget.attachment.isVideo ? 'Video' : 'Image'} · ${_fileSizeLabel(widget.attachment.sizeBytes)}',
-                        style: const TextStyle(color: _muted, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.open_in_new_rounded, color: _primary, size: 17),
-              ],
-            ),
-          ),
-        ),
-      );
-      if (uri == null || !uri.hasScheme) return buildTile(null);
-      return buildTile(() => _openExternalUrl(uri));
-    },
-  );
-}
-
-String _fileSizeLabel(int bytes) {
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).ceil()} KB';
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }
 
 class _DetailSectionTitle extends StatelessWidget {
@@ -1537,6 +1418,11 @@ class _JiraIssueAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final issueKey = createdIssue?.key ?? report.jiraIssueKey;
     final issueUrl = createdIssue?.url ?? report.jiraIssueUrl;
+    final warning =
+        errorMessage ??
+        (report.jiraExportState == 'attachments_failed'
+            ? 'Task created, but some attachments could not be uploaded. Check the files in Jira.'
+            : null);
     if (issueKey != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1547,6 +1433,10 @@ class _JiraIssueAction extends StatelessWidget {
               icon: const Icon(Icons.open_in_new_rounded, size: 18),
               label: Text('Open $issueKey in Jira'),
             ),
+          if (warning case final message?) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ],
         ],
       );
     }
@@ -1584,6 +1474,7 @@ class _FeedbackMetadata extends StatelessWidget {
   Widget build(BuildContext context) {
     final entries = <(String, String)>[
       ('App', report.applicationName),
+      ('Environment', report.environment ?? 'Unspecified'),
       ('Version', _versionLabel(report)),
       ('Platform', _platformLabel(report)),
       if (report.deviceModel case final device?) ('Device', device),
@@ -1643,21 +1534,14 @@ class _FeedbackLogsState extends State<_FeedbackLogs> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: <Widget>[
-      _DetailSectionTitle('App logs · last 24 h'),
+      _DetailSectionTitle('App logs'),
       const SizedBox(height: 8),
-      Text('${widget.report.logs.length} diagnostic entries', style: const TextStyle(color: _muted)),
+      Text(
+        '${widget.report.logCount ?? widget.report.logs.length} diagnostic entries',
+        style: const TextStyle(color: _muted),
+      ),
       const SizedBox(height: 8),
-      ...widget.report.logs
-          .take(4)
-          .map(
-            (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                '${entry.timestamp.toLocal().toIso8601String()} · ${entry.message}',
-                style: const TextStyle(fontSize: 12, color: _muted),
-              ),
-            ),
-          ),
+      FeedbackLogPreview(entries: widget.report.logs),
       FutureBuilder<String?>(
         future: _logsUrl,
         builder: (context, snapshot) {
@@ -1910,7 +1794,7 @@ class _AccessRoleLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = isAdmin ? const Color(0xFFE6F5EB) : const Color(0xFFF0EFF5);
+    final background = isAdmin ? const Color(0xFFE6F5EB) : ConsoleColors.wash;
     final foreground = isAdmin ? const Color(0xFF277A48) : _muted;
     return DecoratedBox(
       decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),

@@ -105,6 +105,7 @@ final class HttpFeedbackReporter implements FeedbackReporter {
         FeedbackImageSource.systemScreenshot => 'system_screenshot',
       },
       'message': report.message,
+      if (report.title != null) 'title': report.title,
       'kind': report.kind.value,
       'requestTaskCreation': report.requestTaskCreation,
       if (report.attachments.isNotEmpty)
@@ -147,6 +148,7 @@ final class HttpFeedbackReporter implements FeedbackReporter {
     if (context == null) return null;
     return <String, Object>{
       if (context.appVersion case final value?) 'appVersion': value,
+      if (context.environment case final value?) 'environment': value.name,
       if (context.buildNumber case final value?) 'buildNumber': value,
       'platform': _platformValue(context.platform),
       if (context.operatingSystemVersion case final value?) 'operatingSystemVersion': value,

@@ -7,6 +7,9 @@ hosting.
 
 ## What a new project needs
 
+Follow the [Firebase onboarding checklist](doc/firebase-onboarding.md) for
+accounts, rules, deployment permissions and the real end-to-end acceptance test.
+
 The integration has four independent parts:
 
 1. Add `humm_capture` to the Flutter application and send reports to that
@@ -17,6 +20,20 @@ The integration has four independent parts:
 3. Build and host this console with that Firebase project's **Web app**
    configuration.
 4. Give selected Firebase Auth users the `reviewer` or `admin` feedback role.
+
+## Optional Slack notifications
+
+The **Slack** section lets feedback administrators connect, test, and remove a
+channel webhook. Deploy the included `firebase/functions` services in your own
+Firebase project. The SDK contains no Slack credential and has no Humm Hub
+dependency. Follow [Slack setup](doc/slack-integration.md) for IAM, service URL,
+privacy, and verification steps.
+
+`context.environment` can be `dev`, `stage`, or `prod`; the console displays and
+filters it. Old reports remain `Unspecified`. Image attachments open a preview;
+video attachments open as files without an embedded player. Store media below
+`feedback/` to match the supplied Storage rules, and preserve attachment `path`
+(or compatible `storagePath`), `fileName`, `mimeType`, and `sizeBytes` metadata.
 
 ## Optional Jira integration
 

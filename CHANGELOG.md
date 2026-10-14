@@ -1,3 +1,17 @@
+# 2.0.0
+
+- Support synchronous and asynchronous diagnostic providers. **Migration:**
+  `FeedbackLogsProvider` now returns `FutureOr<List<FeedbackLogEntry>>`; await
+  direct provider calls. Existing synchronous callbacks remain accepted.
+- Add opt-in bounded diagnostic buffers, persistent app-owned log storage and
+  current-process Android logcat collection with explicit redaction.
+- Add explicit deployment environment and optional report title fields.
+- Allow hosts to disable user-selected attachments while preserving screenshots.
+- Update the standalone console with adaptive inbox navigation, image gallery,
+  readable diagnostic previews and Jira/Slack integration settings.
+- Document Firebase onboarding and independent SDK/backend/console releases.
+- Exclude local configuration and generated application builds from publication.
+
 # 1.0.1
 
 - Refactor feedback composer into modular components under strict file size guidelines.

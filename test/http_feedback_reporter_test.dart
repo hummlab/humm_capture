@@ -37,7 +37,12 @@ void main() {
           'dataBase64': base64Encode(<int>[4, 5, 6]),
         },
       ]);
-      expect(body['context'], <String, Object>{'appVersion': '1.2.0', 'platform': 'android', 'screenName': 'checkout'});
+      expect(body['context'], <String, Object>{
+        'appVersion': '1.2.0',
+        'platform': 'android',
+        'screenName': 'checkout',
+        'environment': 'stage',
+      });
     });
 
     test('marks authentication failures as non-retryable', () async {
@@ -69,7 +74,12 @@ FeedbackReport _report() => FeedbackReport(
   message: 'Primary action is clipped',
   kind: FeedbackReportKind.bug,
   requestTaskCreation: true,
-  context: FeedbackContext(appVersion: '1.2.0', platform: FeedbackPlatform.android, screenName: 'checkout'),
+  context: FeedbackContext(
+    appVersion: '1.2.0',
+    platform: FeedbackPlatform.android,
+    screenName: 'checkout',
+    environment: FeedbackEnvironment.stage,
+  ),
   strokes: <FeedbackStroke>[
     FeedbackStroke(points: const <Offset>[Offset(0.2, 0.3)], color: 0xff4d2fe8, width: 4),
   ],

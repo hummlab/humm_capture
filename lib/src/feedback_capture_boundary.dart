@@ -19,6 +19,7 @@ class FeedbackCaptureBoundary extends StatefulWidget {
     this.contextProvider,
     this.attachmentPicker,
     this.attachmentsProvider,
+    this.attachmentsEnabled = true,
     this.logsProvider,
     @Deprecated('Jira task creation is handled from the Feedback Console.') this.taskCreationAvailabilityProvider,
     this.deliveryCallbacks,
@@ -44,6 +45,9 @@ class FeedbackCaptureBoundary extends StatefulWidget {
 
   /// Optional host-owned picker for image and video attachments.
   final FeedbackAttachmentsProvider? attachmentsProvider;
+
+  /// Whether user-selected media can be attached. The captured screenshot remains enabled.
+  final bool attachmentsEnabled;
 
   /// Optional source of explicitly selected diagnostic records.
   final FeedbackLogsProvider? logsProvider;
@@ -270,8 +274,8 @@ class FeedbackCaptureBoundaryState extends State<FeedbackCaptureBoundary> {
               onCancel: _closeComposer,
               onSubmit: _submitReport,
               context: _feedbackContext,
-              attachmentPicker: widget.attachmentPicker,
-              attachmentsProvider: widget.attachmentsProvider,
+              attachmentPicker: widget.attachmentsEnabled ? widget.attachmentPicker : null,
+              attachmentsProvider: widget.attachmentsEnabled ? widget.attachmentsProvider : null,
               logsProvider: widget.logsProvider,
             ),
         ],

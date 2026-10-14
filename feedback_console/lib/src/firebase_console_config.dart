@@ -13,6 +13,7 @@ final class FirebaseConsoleConfig {
     required this.authDomain,
     required this.storageBucket,
     required this.functionsBaseUrl,
+    this.slackFunctionsBaseUrl = '',
     this.measurementId,
   });
 
@@ -24,6 +25,7 @@ final class FirebaseConsoleConfig {
       authDomain = const String.fromEnvironment('FEEDBACK_FIREBASE_AUTH_DOMAIN'),
       storageBucket = const String.fromEnvironment('FEEDBACK_FIREBASE_STORAGE_BUCKET'),
       functionsBaseUrl = const String.fromEnvironment('FEEDBACK_FUNCTIONS_BASE_URL'),
+      slackFunctionsBaseUrl = const String.fromEnvironment('FEEDBACK_SLACK_FUNCTIONS_BASE_URL'),
       measurementId = const String.fromEnvironment('FEEDBACK_FIREBASE_MEASUREMENT_ID');
 
   final String apiKey;
@@ -33,6 +35,11 @@ final class FirebaseConsoleConfig {
   final String authDomain;
   final String storageBucket;
   final String functionsBaseUrl;
+
+  /// Optional independent Slack service URL; falls back to the existing backend.
+  final String slackFunctionsBaseUrl;
+
+  String get slackBackendUrl => slackFunctionsBaseUrl.trim().isEmpty ? functionsBaseUrl : slackFunctionsBaseUrl;
   final String? measurementId;
 
   bool get isConfigured => <String>[

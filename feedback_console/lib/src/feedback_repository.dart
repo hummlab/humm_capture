@@ -101,8 +101,10 @@ final class FeedbackRepository {
   }
 
   /// Resolves one private, user-selected feedback attachment.
-  Future<String?> attachmentUrlFor(FeedbackReportAttachment attachment) =>
-      _attachmentUrls.putIfAbsent(attachment.path, () => _storage.ref(attachment.path).getDownloadURL());
+  Future<String?> attachmentUrlFor(FeedbackReportAttachment attachment, {bool refresh = false}) {
+    if (refresh) _attachmentUrls.remove(attachment.path);
+    return _attachmentUrls.putIfAbsent(attachment.path, () => _storage.ref(attachment.path).getDownloadURL());
+  }
 
   /// Resolves the optional plain-text log snapshot stored with [report].
   Future<String?> logsUrlFor(FeedbackReport report) async {

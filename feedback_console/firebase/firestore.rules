@@ -21,6 +21,7 @@ service cloud.firestore {
     match /feedbackReports/{reportId} {
       allow read: if member();
       allow update: if member() &&
+        request.resource.data.status in ['new', 'in_review', 'resolved', 'rejected'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
       allow create: if false;
       allow delete: if admin();
@@ -38,8 +39,16 @@ service cloud.firestore {
       allow get: if signedIn() && (userId == request.auth.uid || admin());
       allow list: if admin();
       allow update: if admin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackRole']);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackRole', 'feedbackCanCreateJiraTasks']) &&
+        (!('feedbackRole' in request.resource.data) || request.resource.data.feedbackRole in ['admin', 'reviewer']) &&
+        (!('feedbackCanCreateJiraTasks' in request.resource.data) || request.resource.data.feedbackCanCreateJiraTasks is bool);
       allow create, delete: if false;
+    }
+
+    // Integration metadata is served only through the authenticated admin API.
+    // Webhook payloads belong in Secret Manager, never Firestore.
+    match /feedbackIntegrations/{integrationId} {
+      allow read, write: if false;
     }
   }
 }
